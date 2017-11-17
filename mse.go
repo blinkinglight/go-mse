@@ -31,41 +31,61 @@ type As struct {
 
 func (a *As) Set(name string, start int64) {
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	if _, ok := a.nodes[name]; !ok {
 		a.nodes[name] = new(Node)
-		a.nodes[name].Start = start
 	}
+	a.nodes[name].Start = start
 	a.nodes[name].Updated = time.Now().UnixNano()
-	a.mu.Unlock()
+
 }
 
 func (a *As) Update() {
 	if !a.IsAlive() {
 		return
 	}
-	start := as.start
 	a.mu.Lock()
-	for name, node := range a.nodes {
+	defer a.mu.Unlock()
+	start := as.start
+	for _, node := range a.nodes {
 		if node.IsAlive() {
 			if node.Start < start {
 				start = node.Start
 			}
-		} else {
-			delete(a.nodes, name)
 		}
 	}
-	a.mu.Unlock()
 	as.master = as.start <= start
+
+}
+
+func (a *As) SetSelfMaster() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	start := a.start
+	for _, node := range a.nodes {
+		if node.Start < start {
+			start = node.Start
+		}
+	}
+	if start < a.start {
+		as.start = start - 1
+	}
 }
 
 func (a *As) IsMaster() bool {
-	return as.master
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.master
 }
 
 func (a *As) IsSlave() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return !a.master
 }
 func (a *As) IsAlive() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return a.alive
 }
 
@@ -97,11 +117,17 @@ func Start(topic, name, natsServer string) {
 	}
 	as.alive = cli.IsConnected()
 
+	cli.Subscribe(name+".rpc", func(msg *nats.Msg) {
+		if string(msg.Data) == "set-master" {
+			as.SetSelfMaster()
+		}
+	})
 	go func() {
 		for {
-			cli.Publish(topic, []byte(fmt.Sprintf("%v %v %d", "alive", name, start)))
+			as.mu.Lock()
+			cli.Publish(topic, []byte(fmt.Sprintf("%v %v %d", "alive", name, as.start)))
+			as.mu.Unlock()
 			as.alive = cli.IsConnected()
-			as.Set(name, as.start)
 			time.Sleep(30 * time.Millisecond)
 		}
 	}()
