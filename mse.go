@@ -19,14 +19,15 @@ func (n *Node) IsAlive() bool {
 }
 
 type As struct {
-	start   int64
-	name    string
-	master  bool
-	alive   bool
-	gotMsg  bool
-	msgTime int64
-	nodes   map[string]*Node
-	mu      sync.Mutex
+	start      int64
+	name       string
+	master     bool
+	alive      bool
+	gotMsg     bool
+	msgTime    int64
+	nodes      map[string]*Node
+	mu         sync.Mutex
+	masterName string
 }
 
 func (a *As) Set(name string, start int64) {
@@ -47,15 +48,17 @@ func (a *As) Update() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	start := as.start
-	for _, node := range a.nodes {
+	masterName := as.name
+	for name, node := range a.nodes {
 		if node.IsAlive() {
 			if node.Start < start {
 				start = node.Start
+				masterName = name
 			}
 		}
 	}
 	as.master = as.start <= start
-
+	as.masterName = masterName
 }
 
 func (a *As) SetSelfMaster() {
@@ -103,6 +106,28 @@ func IsAlive() bool {
 	return as.IsAlive()
 }
 
+func MasterName() string {
+	return as.masterName
+}
+
+func SetRPCChannel(name string) {
+	rpcChannel = name
+}
+
+func DoRCP(name string, data string, timeout int) (string, error) {
+	msg, err := cli.Request(name, []byte(data), time.Duration(timeout)*time.Millisecond)
+	if err != nil {
+		return "", err
+	}
+	return string(msg.Data), nil
+}
+
+var OnPC func(string, string)
+
+var rpcChannel string
+
+var cli *nats.Conn
+
 func Start(topic, name, natsServer string) {
 
 	as = new(As)
@@ -110,16 +135,29 @@ func Start(topic, name, natsServer string) {
 	start := time.Now().UnixNano()
 	as.start = start
 	as.name = name
-
-	cli, e := nats.Connect(natsServer)
+	var e error
+	cli, e = nats.Connect(natsServer)
 	if e != nil {
 		panic(e)
 	}
 	as.alive = cli.IsConnected()
 
-	cli.Subscribe(name+".rpc", func(msg *nats.Msg) {
-		if string(msg.Data) == "set-master" {
+	if rpcChannel == "" {
+		rpcChannel = name + ".rpc"
+	}
+
+	cli.Subscribe(rpcChannel, func(msg *nats.Msg) {
+		data := string(msg.Data)
+		if data == "set-master" {
 			as.SetSelfMaster()
+		} else {
+			params := strings.SplitN(data, " ", 2)
+			if len(params) < 2 {
+				OnPC(params[0], "")
+			} else {
+				OnPC(params[0], params[1])
+			}
+			cli.Publish(msg.Reply, []byte("OK"))
 		}
 	})
 	go func() {
