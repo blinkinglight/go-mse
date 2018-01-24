@@ -11,7 +11,16 @@ import (
 
 func main() {
 	mse.SetChannel("mse")
+	mse.SetNatsServer("nats://127.0.0.1:4222")
+	// mse.SetName("myfirstnode")
+
+	// custom method which tell if node has internet connection etc.
+	// mse.IsConnected = func() bool {
+	//	return true
+	// }
+
 	mse.Start()
+	
 	for {
 		if  mse.IsMaster() {
 			// do something 
@@ -22,3 +31,4 @@ func main() {
 }
 ```
 
+publish to mse channel "set-master [nodename]" to switch node to master
