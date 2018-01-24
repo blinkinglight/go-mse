@@ -4,24 +4,21 @@ golang master slave election
 package main
 
 import (
-	"flag"
 	"github.com/spx/go-mse"
 	"log"
 	"time"
 )
 
-var name = flag.String("n", "[noname]", "service name")
-
 func main() {
-	flag.Parse()
-
-	mse.Start("master-slave", *name, "nats://127.0.0.1:4222")
-
+	mse.SetChannel("mse")
+	mse.Start()
 	for {
-		log.Printf("%v\n", mse.IsMaster())
-		time.Sleep(200 * time.Millisecond)
+		if  mse.IsMaster() {
+			// do something 
+		}
+		log.Printf("%v", mse.IsMaster())
+		time.Sleep(1 * time.Second)
 	}
 }
 ```
 
-also listens on topic "[noname].rpc" and accepts "set-master" - switches node by name to master.
