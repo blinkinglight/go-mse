@@ -13,6 +13,7 @@ import (
 
 var name string = "[noname]"
 var channel string = "mse"
+var natsServer string = "nats://127.0.0.1:4222"
 var cli *nats.Conn
 
 var mu sync.Mutex
@@ -42,6 +43,10 @@ func SetChannel(c string) {
 	channel = c
 }
 
+func SetNatsServer(s string) {
+	natsServer = s
+}
+
 func Start() {
 	startTime = time.Now().UnixNano()
 
@@ -56,7 +61,7 @@ func Start() {
 	nodes = make(map[string]*node)
 
 	var e error
-	cli, e = nats.Connect("nats://127.0.0.1:4222",
+	cli, e = nats.Connect(natsServer,
 		nats.ReconnectHandler(func(_ *nats.Conn) {
 			connectTime = time.Now().UnixNano()
 		}),
