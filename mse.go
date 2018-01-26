@@ -27,7 +27,7 @@ type node struct {
 }
 
 func (n *node) Alive() bool {
-	return time.Now().UnixNano()-n.Updated > int64(50*time.Nanosecond)
+	return time.Now().UnixNano()-n.Updated < time.Second.Nanoseconds()/10
 }
 
 var startTime int64
