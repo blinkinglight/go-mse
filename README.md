@@ -22,8 +22,15 @@ func main() {
 	mse.Start()
 	
 	for {
+		msg := doJob() 
+
 		if  mse.IsMaster() {
 			// do something 
+			// MQ.publish(msg)
+			// socket.write(msg)
+			// etc.
+		} else {
+			// do nothing
 		}
 		log.Printf("%v", mse.IsMaster())
 		time.Sleep(1 * time.Second)
@@ -32,3 +39,4 @@ func main() {
 ```
 
 publish to mse channel "set-master [nodename]" to switch node to master
+
